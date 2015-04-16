@@ -1,0 +1,4 @@
+# setup redis test environment so we're not updating live server
+# fiddle with zunionstore AGGREGATE and WEIGHTS options
+# check what is happening with the old Redis instances created in #setup
+

@@ -1,0 +1,288 @@
+http://redis.io/topics/quickstart
+
+Redis  - stands for: REmote DIctionary Server.
+
+Sometimes called a NoSql server
+
+To get latest version you have to download and build the src then make install.
+> wget http://download.redis.io/redis-stable.tar.gz
+> tar xvzf redis-stable.tar.gz
+> cd redis-stable
+> make
+> make test
+> make install
+
+Redis does not use a config file by default.
+> redis-server
+> redis-server /etc/redis.conf
+
+You talk to redis through a TCP socket, but there is also a command line client.
+> redis-cli <some-command> | sends a single command
+> redis-cli | interactive client
+
+Data types
+----------
+
+http://redis.io/topics/data-types-intro
+
+In Redis keys are always strings (binary-safe), but values can be of several data types.
+(Binary-safe strings, Lists, Sets, Sorted sets, Hashes, Bit arrays/maps, HyperLogLogs)
+
+NOTE: there is no integer, float, date etc.
+
+Keys can be any binary string and so not affected by encoding. Keys can be anything from a word, to a binary files contents, or md5 hash.
+Long keys are bad idea (memory, costly comparisons). Very short or crypic keys are a bad idea. Better to have something readable.
+Best to use a schema like format e.g. "user:1000"
+Use dots or dashes for multiword keys e.g. "object-type" or "first.name"
+
+NOTE: keys are created and destroyed automatically, so you can't actually create an empty set.
+
+String type
+-----------
+Is sometimes used for caching html fragments.
+
+set / retrieve a string value
+> set mykey somevalue
+> get mykey
+
+make set fail if the key already exists
+> set mykey newval nx
+> setnx mykey newval - shorthand
+
+make set fail UNLESS the key exists
+> set mykey newval xx
+
+Some commands have numerical behaviour
+
+atomic increment a counter (the value is still a string)
+> incr cnt (see: decr, incrby, decrby)
+
+Atomic means there is no race condition if 2 people try to increment at the same time.
+
+get and set at the same time atomically. This would get the counter value and set it to zero atomically.
+> GETSET cnt "0"
+
+get or set multiple values at the same time to reduce lag
+> mset first-name John last-name Thomas
+> mget first-name last-name
+
+check a key exists, check the data type, or delete a key
+> exists some-key
+> type some-key
+> del some-key
+
+NOTE: working with keys like this is sometimes called querying the "key space"
+
+expire a key in n seconds (set time-to-live in seconds), or remove expiry (persist)
+> expire some-key 60
+> persist some-key
+
+specify ttl at set time
+> set foo bar ex 60
+
+check ttl for a key (returns -1 sf the key is persitant, and -2 if the key is non existant)
+> ttl some-key
+
+NOTE: to work in ms use PEXPIRE, PTTL, PX etc.
+
+List type
+---------
+
+Lists (linked lists) are not the same as arrays, but they are often confused.
+Adding any number of elements to a list always takes the same time (constant time)
+
+popping, pushing, getting a range, and trimming a list (0 -1 means from start to finish)
+> lpush my-list three two one | creates the list if it does not exist.
+> rpush my-list four
+> lpop my-list
+> rpop my-list
+> lrange my-list 0 -1 (there is no rrange)
+> ltrim my-list 0 999
+> llen | get length of list
+NOTE: other languages call lpop shift
+ 
+A use case for lists might be keeping a list of the 10 most recent posts to a social media site.
+Another one might be running background jobs (a consumer-producer pattern).
+When thinking what to use lists for: think push and pop cos that's what they're good at.
+Example: every time someone posts a new photo, we add it's ID to a list then use LRANGE 0 9 to get the first 10.
+
+Thought: using redis like this is a bit like having application wide variables. 
+
+pop and item from a list without having to poll the list to check for entries (the B means blocking operation)
+> blpop my-list 5
+
+NOTE: return value includes the list name as you don't alway know which list your waiting for.
+
+rpopping from list and lpushing to another atomically
+> rpoplpush to-do done
+> rpoplpush queue queue
+(see: brpoplpush)
+
+Pattern: reliable queue, circular list
+NOTE: Redis is often used as a messaging server to implement processing of background jobs or other kinds of messaging tasks.
+
+Hashes
+------
+
+add multiple values to a hash
+> hmset job:1 name "washing up" time 10
+> hget job:1 name
+> hgetall job:1
+(see: hset, hmget)
+
+Some commands operate on specific hash fields
+
+increment a users funds by 100
+> hincrby user:1 funds 100
+
+http://redis.io/commands#hash - full list of commands
+
+Sets
+----
+
+Redis Sets are unordered collections of strings. It can only contain unique elements!
+
+add to a set
+> sadd people john paul ringo
+> smembers people
+> sismember john
+
+express relation between objects
+> sadd bands:beatles:people john paul ringo
+> sadd people:john:band beatles
+> sadd people:paul:band beatles
+> sadd people:ringo:band beatles
+
+intersection of sets (etc...)
+> sadd foods:british fishnchips roastbeef bread
+> sadd foods:french bread snails pigsfeet
+> sinter foods:french foods:british
+  1) "bread"
+> sunion foods:french foods:british
+  1) "bread"
+  2) "pigsfeet"
+  3) "snails"
+  4) "fishnchips"
+  5) "roastbeef"
+> sdiff foods:french foods:british
+  1) "pigsfeet"
+  2) "snails"
+> sdiff foods:british foods:french
+  1) "fishnchips"
+  2) "roastbeef"
+
+(also see: sunionstore, sdiffstore for storing results in a new set)
+
+
+spop...
+> sadd coins 1p 2p 5p 10p 20p 50p
+> spop coins - removes and returns a random element (presumably because a set is unordered)
+> srandmember coins - random without popping
+
+copying a set with UNIONSTORE
+> sadd coins 1p 2p 5p 10p 20p 50p
+> sunionstore wallet coins - note the destination is first
+
+normal union
+> sadd coins 1p 2p 5p 10p 20p 50p
+> sadd notes 5 10 20 50
+> sunionstore wallet coins notes
+> smembers wallet
+   1) "1p"
+   2) "10p"
+   3) "20p"
+   4) "5p"
+   5) "2p"
+   6) "50p"
+   7) "5"
+   8) "10"
+   9) "50"
+  10) "20"
+
+the "cardinality of a set" in set theory is the number of elements (count!)
+> scard coins
+  (integer) 6
+
+
+Sorted Sets
+------------
+
+In a sorted set each entry is associated with a float value called "score"
+
+adding to an ordered set
+> zadd followers 100 tim 150 jo 0 rich 500 em
+> zrange followers 0 -1
+  1) "rich"
+  2) "tim"
+  3) "jo"
+  4) "em"
+> zrevrange 0 -1
+> zrevrange followers 0 -1 withscores
+  1) "em"
+  2) "500"
+  3) "jo"
+  4) "150"
+  5) "tim"
+  6) "100"
+  7) "rich"
+  8) "0"
+> zrangebyscore followers 100 200
+  1) "tim"
+  2) "jo"
+> zremrangebyscore followers 0 99 | removes items by score
+> zrank followers jo | tells you the items position in sorted set
+> zrevrank followers tim | same but as if the set was reversed
+
+items with the same score are sorted lexicographically
+> zadd people 0 burt 0 charles 0 adam 0 derek
+> zrange people 0 -1
+  1) "adam"
+  2) "burt"
+  3) "charles"
+  4) "derek"
+> zrangebylex people [b [d
+  1) "burt"
+  2) "charles"
+
+NOTE: if you zadd an existing item, it's score is updated.
+
+See also: SETBIT, GETBIT, BITOP, BITCOUNT, BITPOS
+See also: HyperLogLogs
+
+
+
+
+Another tutorial
+----------------
+
+http://redis.io/topics/twitter-clone
+
+"...you can use Redis to write whole web applications without using another database like an SQL database, and without going crazy"
+
+Using LPUSH / RPUSH User updates can be added to a list stored in username:updates
+LRANGE 0 -1 - important
+LLEN - returns number of items in list
+LTRIM - same as range but removes the items from the source.
+
+SCARD - same as LLEN but for sets
+SADD / SREM - as or remove item from set
+SISMEMBER - check for existance of element (member)
+SMEMBERS - list all members of a set (in no particular order)
+
+If you want to store things in order, use a list. Not necessarily an sorted set.
+
+SINTER - intersection of sets. Returns member present in BOTH sets
+
+In Sets and Sorted Sets every element is unique
+
+Many of the Set methdos are not available on Sorted Sets. Methods are prefixed with Z.
+
+ZADD / ZRANGE - same as set methods
+
+ZUNIONSTORE / ZINTERSTORE - there is no ZUNION etc. (without STORE)
+> ZUNIONSTORE outset 100 zset1 zset2 | store union of 2 sets in outset
+See: weights and aggregate
+
+IMPORTANT: By default if an item is present in 2 sets, the resulting member will have score of the sum of the other 2 scores.
+Use AGGREGATE option to change this.
+> ZUNIONSTORE outset 100 zset1 zset2 AGGREGATE MIN/MAX/SUM
