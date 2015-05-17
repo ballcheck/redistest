@@ -124,11 +124,15 @@ NOTE: Redis is often used as a messaging server to implement processing of backg
 Hashes
 ------
 
-add multiple values to a hash
+single values...
+
+> hset job:1 name
+> hget job:1
+
+multiple values...
 > hmset job:1 name "washing up" time 10
-> hget job:1 name
 > hgetall job:1
-(see: hset, hmget)
+(see: hmget)
 
 Some commands operate on specific hash fields
 

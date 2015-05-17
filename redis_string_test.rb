@@ -2,17 +2,9 @@ require File.expand_path( "../test_helper.rb", __FILE__ )
 
 require "timecop"
 
-class RedisStringTest < TestCase
+class RedisStringTest < RedisTestCase
   # These tests are just me experimenting with the various
   # features of Redis.
-
-  def setup
-    # this simply creates a redis client, NOT a server
-    @redis = Redis.new
-
-    @key = given_a_random_string
-    @val = given_a_random_string
-  end
 
   #-------------------------
   # testing String data type
@@ -29,6 +21,51 @@ class RedisStringTest < TestCase
     @redis.expire( @key, 0 )
   end
 
+  # "xx" sets the key IF it already exists
+  def test_set_key_if_it_exists
+    # Given
+    refute @redis.exists( @key )
+
+    # When
+    @redis.set @key, @val, xx: true
+
+    # Then 
+    refute @redis.get( @key )
+
+    # ...and...
+
+    # Given
+    @redis.set @key, ""
+    assert @redis.exists( @key )
+
+    # When
+    @redis.set @key, @val, xx: true
+
+    # Then 
+    assert_equal @val, @redis.get( @key )
+  end
+
+  # "nx" sets the key UNLESS it already exists
+  def test_set_key_unless_it_exists
+    # Given
+    refute @redis.exists( @key )
+
+    # When
+    @redis.set @key, @val1, nx: true
+
+    # Then 
+    assert_equal @val1, @redis.get( @key )
+
+    # ...and...
+
+    # When
+    @redis.set @key, @val2, nx: true
+
+    # Then 
+    refute_equal @val2, @redis.get( @key )
+    assert_equal @val1, @redis.get( @key )
+  end
+
   def test_expire_key
     # Given
     @redis.set @key, nil
@@ -41,20 +78,21 @@ class RedisStringTest < TestCase
     assert !@redis.exists( @key )
   end
 
-  def test_expire_key_in_time
-    # Given
-    secs = 1
+  # cba waiting for this test to run
+  #def test_expire_key_in_time
+  #  # Given
+  #  secs = 1
 
-    @redis.set @key, nil, ex: secs
-    assert @redis.exists( @key )
+  #  @redis.set @key, nil, ex: secs
+  #  assert @redis.exists( @key )
 
-    # When
-    sleep secs + 0.1
+  #  # When
+  #  sleep secs + 0.1
 
-    # Then
-    # this only works because less than half a second has passed
-    assert !@redis.exists( @key )
-  end
+  #  # Then
+  #  # this only works because less than half a second has passed
+  #  assert !@redis.exists( @key )
+  #end
 
   def test_ttl
     # Given
@@ -127,4 +165,29 @@ class RedisStringTest < TestCase
     refute_equal Time.now, past
   end
 
+  def test_incr
+    # Given
+    start = given_a_random_number
+    @redis.set( @key, start )
+
+    # When
+    @redis.incr( @key )
+
+    # Then
+    assert_equal start + 1, @redis.get( @key ).to_i
+  end
+
+  def test_incr_by
+    # Given
+    start = given_a_random_number
+    incr = given_a_random_number
+
+    @redis.set( @key, start )
+
+    # When
+    @redis.incrby( @key, incr )
+
+    # Then
+    assert_equal start + incr, @redis.get( @key ).to_i
+  end
 end
