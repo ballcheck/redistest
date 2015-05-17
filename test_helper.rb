@@ -13,6 +13,10 @@ class TestCase < Test::Unit::TestCase
     rand 1000
   end
 
+  def given_a_random_float
+    rand( 1000 ) + rand
+  end
+
   def assert_equal_members( a, b )
     assert_equal a.sort, b.sort
   end
@@ -43,5 +47,11 @@ class RedisTestCase < TestCase
     @val2 = given_a_random_string << "_val2"
     @val3 = given_a_random_string << "_val3"
     @val4 = given_a_random_string << "_val4"
+
+    @score = given_a_random_float
+    @score1 = given_a_random_float
+    @score2 = given_a_random_float
+    @score3 = given_a_random_float
+    @score4 = given_a_random_float
   end
 end
